@@ -1,0 +1,36 @@
+#!/bin/bash
+
+LOG_FILE="/var/log/sys_setup.log"
+NEW_USER="admin"
+
+if [[ $EUID -ne 0 ]]; then
+  echo "need root"
+  exit 1
+fi
+
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "[$(date)] update"
+
+echo ">>Updating.."
+apt update && apt upgrade -y
+
+echo ">>Security"
+apt install -y ufw fail2ban
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow ssh
+ufw --force enable
+
+if ! id "$NEW_USER" &>/dev/null; then
+  echo "new_user: $NEW_USER"
+  useradd -m -s /bin/bash "$NEW_USER"
+  usermod -aG sudo "$NEW_USER"
+  echo "Set new password to $NEW_USER = 'passwd $NEW_USER'"
+fi
+echo "Up security"
+sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+systemctl restart ssh
+
+echo "Setup tool"
+apt install -y htop net-tools vim git curl
+echo "[$(date)] $LOG_FILE"
